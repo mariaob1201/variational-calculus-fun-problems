@@ -1,0 +1,728 @@
+<title>Selección óptima de parcela: depredación vs. inanición</title>
+<style>
+.viz-root{
+  color-scheme: light;
+  --surface-1:      #fcfcfb;
+  --page:           #f9f9f7;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --grid:           #e1e0d9;
+  --axis:           #c3c2b7;
+  --border:         rgba(11,11,11,0.10);
+  --s1: #2a78d6; /* parcela 1 */
+  --s2: #eb6834; /* parcela 2 */
+  --s3: #1baf7a; /* parcela 3 */
+  --l4: #2a78d6; --l5: #eb6834; --l6: #1baf7a; --l7: #eda100; --l8: #e87ba4; --l9: #008300; --l10: #4a3aa7;
+  --seq-100:#cde2fb; --seq-200:#9ec5f4; --seq-300:#6da7ec; --seq-400:#3987e5; --seq-500:#256abf; --seq-600:#184f95; --seq-700:#0d366b;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])) .viz-root{
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --axis:           #383835;
+    --border:         rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --l4: #3987e5; --l5: #d95926; --l6: #199e70; --l7: #c98500; --l8: #d55181; --l9: #008300; --l10: #9085e9;
+  }
+}
+:root[data-theme="dark"] .viz-root{
+  color-scheme: dark;
+  --surface-1:      #1a1a19;
+  --page:           #0d0d0d;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #898781;
+  --grid:           #2c2c2a;
+  --axis:           #383835;
+  --border:         rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --l4: #3987e5; --l5: #d95926; --l6: #199e70; --l7: #c98500; --l8: #d55181; --l9: #008300; --l10: #9085e9;
+}
+
+* { box-sizing: border-box; }
+.viz-root{
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 32px 20px 60px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+h1{ font-size: 1.5rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+.subtitle{ color: var(--text-secondary); font-size: 0.95rem; margin: 0 0 28px; }
+.card{
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 22px;
+}
+.card h2{ font-size: 1.05rem; margin: 0 0 6px; }
+.card p{ color: var(--text-secondary); font-size: 0.88rem; line-height: 1.55; margin: 0 0 10px; }
+.card p:last-child{ margin-bottom: 0; }
+code, .formula{
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+.formula-block{
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+table{ border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+th, td{ text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child{ text-align: left; }
+thead th{ color: var(--text-muted); font-weight: 600; }
+.params-table td, .params-table th{ text-align: center; }
+.params-table th:first-child, .params-table td:first-child{ text-align: left; }
+.swatch{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:middle; }
+
+.legend{ display:flex; flex-wrap:wrap; gap: 14px; margin: 10px 0 4px; font-size: 0.82rem; color: var(--text-secondary); }
+.legend-item{ display:flex; align-items:center; gap:6px; }
+.legend-swatch{ width:12px; height:12px; border-radius:3px; flex:none; }
+.legend-line{ width:16px; height:2px; border-radius:2px; flex:none; }
+
+svg{ display:block; width:100%; height:auto; overflow: visible; }
+.axis-label{ fill: var(--text-muted); font-size: 10px; }
+.axis-title{ fill: var(--text-secondary); font-size: 11px; }
+.gridline{ stroke: var(--grid); stroke-width: 1; }
+.baseline{ stroke: var(--axis); stroke-width: 1; }
+
+.cell{ stroke: var(--surface-1); stroke-width: 2; cursor: default; }
+.cell:hover{ opacity: 0.82; }
+
+.line-path{ fill:none; stroke-width:2; }
+.dot{ r:3.2; }
+.dot:hover{ r:5; }
+
+.tooltip{
+  position: absolute;
+  pointer-events: none;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  opacity: 0;
+  transition: opacity 0.1s;
+  white-space: nowrap;
+  z-index: 5;
+}
+.chart-wrap{ position: relative; }
+
+details.tableview{ margin-top: 10px; }
+details.tableview summary{
+  cursor: pointer; font-size: 0.8rem; color: var(--text-secondary);
+  user-select: none;
+}
+details.tableview .scroll{ overflow-x:auto; margin-top: 8px; }
+
+.callout{
+  border-left: 3px solid var(--s3);
+  padding: 8px 12px;
+  background: var(--page);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 10px;
+}
+
+.step{ display:flex; gap:12px; margin: 12px 0; }
+.step-num{
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--s1); color: #fff; font-size: 0.72rem; font-weight: 700;
+  display:flex; align-items:center; justify-content:center; margin-top: 1px;
+}
+.step-body{ font-size: 0.86rem; color: var(--text-secondary); line-height: 1.55; }
+.step-body strong{ color: var(--text-primary); }
+
+.errbar{ stroke-width: 1.5; }
+
+pre.code{
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  color: var(--text-primary);
+  margin: 0;
+  white-space: pre;
+}
+.code-title{
+  font-size: 0.78rem; color: var(--text-muted); margin: 18px 0 6px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.code-title:first-child{ margin-top: 0; }
+</style>
+
+<div class="viz-root">
+  <h1>¿En cuál parcela refugiarse? Depredación vs. inanición en 20 periodos</h1>
+  <p class="subtitle">Programación dinámica estocástica (ecuación de Bellman) sobre la reserva de energía del animal</p>
+
+  <div class="card">
+    <h2>Modelo</h2>
+    <p>Estado: energía <code>x ∈ {4,…,10}</code> (entera). Si <code>x &lt; 4</code> el animal muere de inanición; la capacidad máxima es <code>x = 10</code>. En cada periodo el animal elige una parcela <code>i ∈ {1,2,3}</code>, cada una con riesgo de depredación <code>pᵢ</code>, probabilidad de encontrar comida <code>fᵢ</code> y energía que aporta el alimento <code>eᵢ</code>. Buscar alimento cuesta siempre 1 unidad de energía.</p>
+    <table class="params-table">
+      <thead><tr><th>Parcela</th><th>Riesgo depredación pᵢ</th><th>Prob. encontrar comida fᵢ</th><th>Energía si hay comida eᵢ</th></tr></thead>
+      <tbody>
+        <tr><td><span class="swatch" style="background:var(--s1)"></span>1 (refugio seguro)</td><td>0.000</td><td>0.0</td><td>0</td></tr>
+        <tr><td><span class="swatch" style="background:var(--s2)"></span>2 (intermedia)</td><td>0.004</td><td>0.4</td><td>3</td></tr>
+        <tr><td><span class="swatch" style="background:var(--s3)"></span>3 (arriesgada)</td><td>0.020</td><td>0.6</td><td>5</td></tr>
+      </tbody>
+    </table>
+    <p>Sea <code>V(x,t)</code> la probabilidad máxima de seguir vivo al cabo de <code>t</code> periodos restantes, partiendo de energía <code>x</code>. La ecuación de optimalidad (Bellman) es:</p>
+    <div class="formula-block">V(x,t) = max<sub>i∈{1,2,3}</sub> (1−pᵢ) · [ fᵢ · V(x−1+eᵢ, t−1) + (1−fᵢ) · V(x−1, t−1) ]<br>V(x,0) = 1 &nbsp;para todo x≥4,&nbsp;&nbsp; V(y,·) = 0 si y&lt;4,&nbsp;&nbsp; x se trunca en 10</div>
+    <p>Se resuelve por inducción hacia atrás desde <code>t=0</code> hasta <code>t=20</code>; en cada <code>(x,t)</code> se guarda la parcela que maximiza el corchete.</p>
+  </div>
+
+  <div class="card">
+    <h2>Racional: por qué es un problema de probabilidad</h2>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body"><strong>Ley de probabilidad total.</strong> Dado que se eligió la parcela <code>i</code>, ocurren dos eventos aleatorios independientes: depredación (muere con prob. <code>pᵢ</code>) y, si sobrevive, forrajeo (encuentra comida con prob. <code>fᵢ</code>). "Sobrevivir este periodo <em>y</em> todos los que quedan" se descompone exactamente en la suma ponderada de esas ramas — eso es el lado derecho de la ecuación de Bellman, no una aproximación.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body"><strong>Principio de optimalidad (Bellman).</strong> El par <code>(x,t)</code> — energía actual y periodos restantes — resume toda la información relevante para el futuro: es un proceso de decisión markoviano. Por eso la decisión óptima en <code>(x,t)</code> no depende de cómo se llegó ahí, y el problema se puede resolver por <strong>inducción hacia atrás</strong> en vez de enumerar las <code>3²⁰ ≈ 3.5×10⁹</code> trayectorias posibles.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body"><strong>Analogía con cálculo de variaciones.</strong> Es el equivalente discreto y estocástico del principio de Pontryagin / ecuaciones de Euler-Lagrange en control óptimo continuo: allí se maximiza un funcional vía el Hamiltoniano a lo largo de una trayectoria determinista; aquí, al ser discreto y con incertidumbre, el mismo principio de optimalidad — "la cola de una trayectoria óptima también es óptima" — se aplica vía la recursión de Bellman sobre un árbol de escenarios.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body"><strong>Verificación independiente.</strong> Como la solución de la ecuación de Bellman es exacta pero fácil de programar mal (límites de tope/piso, orden de eventos), se valida por separado con <strong>simulación Monte Carlo</strong>: se generan miles de trayectorias aleatorias siguiendo la política obtenida y se compara la frecuencia empírica de supervivencia contra <code>V(x,20)</code> (ver más abajo).</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Política óptima d*(x, t)</h2>
+    <p>Qué parcela conviene elegir según la energía actual <code>x</code> y los periodos que faltan <code>t</code>. Pase el cursor sobre una celda para ver el detalle.</p>
+    <div class="legend" id="legend-policy"></div>
+    <div class="chart-wrap">
+      <svg id="chart-policy" viewBox="0 0 900 340"></svg>
+      <div class="tooltip" id="tt-policy"></div>
+    </div>
+    <div class="callout">Estructura de umbral: con energía alta (9–10) conviene la parcela 1 (sin riesgo); con energía baja (4–7) conviene la parcela 3, pese a su mayor riesgo, porque su probabilidad de encontrar comida (0.6) es la única forma fiable de evitar la inanición. La parcela 2 aparece como zona intermedia (8–9) sobre todo cuando quedan muchos periodos por vivir.</div>
+    <details class="tableview"><summary>Ver tabla</summary><div class="scroll" id="table-policy"></div></details>
+  </div>
+
+  <div class="card">
+    <h2>Probabilidad de supervivencia V(x, t)</h2>
+    <p>Para cada energía inicial <code>x₀</code>, probabilidad de sobrevivir los siguientes <code>t</code> periodos siguiendo la política óptima.</p>
+    <div class="legend" id="legend-lines"></div>
+    <div class="chart-wrap">
+      <svg id="chart-lines" viewBox="0 0 900 360"></svg>
+      <div class="tooltip" id="tt-lines"></div>
+    </div>
+    <details class="tableview"><summary>Ver tabla</summary><div class="scroll" id="table-lines"></div></details>
+  </div>
+
+  <div class="card">
+    <h2>Resultado a 20 periodos</h2>
+    <p>Probabilidad de sobrevivir los 20 periodos completos, según la energía con la que arranca el animal.</p>
+    <div class="chart-wrap">
+      <svg id="chart-bar" viewBox="0 0 900 260"></svg>
+      <div class="tooltip" id="tt-bar"></div>
+    </div>
+    <p>Con la energía máxima (x₀=10) la probabilidad de sobrevivir 20 periodos es <strong>87.8%</strong>; con la energía mínima viable (x₀=4) cae a <strong>50.9%</strong>. La brecha refleja el costo de tener que forrajear en parcelas riesgosas desde el primer periodo.</p>
+  </div>
+
+  <div class="card">
+    <h2>Validación por simulación Monte Carlo</h2>
+    <p>Se simularon <strong>N = 200 000 trayectorias</strong> por cada energía inicial x₀, siguiendo la política óptima d*(x,t) obtenida por programación dinámica. La frecuencia empírica de supervivencia coincide con la teoría dentro del intervalo de confianza al 95% — confirma que la recursión de Bellman está bien planteada.</p>
+    <div class="legend" id="legend-sim"></div>
+    <div class="chart-wrap">
+      <svg id="chart-sim" viewBox="0 0 900 300"></svg>
+      <div class="tooltip" id="tt-sim"></div>
+    </div>
+    <details class="tableview"><summary>Ver tabla</summary><div class="scroll" id="table-sim"></div></details>
+  </div>
+
+  <div class="card">
+    <h2>Comparación con políticas alternativas</h2>
+    <p>Para confirmar que la política de DP no es solo razonable sino realmente óptima, se simuló (N = 100 000 por punto) contra cuatro alternativas: quedarse siempre en una misma parcela, o actuar de forma <em>miope</em> (maximizar la ganancia esperada de energía de este periodo, ignorando el riesgo acumulado y el horizonte restante).</p>
+    <div class="legend" id="legend-baselines"></div>
+    <div class="chart-wrap">
+      <svg id="chart-baselines" viewBox="0 0 900 320"></svg>
+      <div class="tooltip" id="tt-baselines"></div>
+    </div>
+    <div class="callout">"Siempre parcela 1" muere de inanición con certeza (0%): nunca repone energía, así que solo retrasa lo inevitable. La política óptima domina a las cuatro alternativas para cualquier energía inicial — incluida la miope, que subestima el valor de asumir riesgo cuando la energía es baja.</div>
+    <details class="tableview"><summary>Ver tabla</summary><div class="scroll" id="table-baselines"></div></details>
+  </div>
+
+  <div class="card">
+    <h2>Código fuente</h2>
+    <p>Python puro (sin dependencias). Tres piezas: el solver de programación dinámica, el simulador Monte Carlo que lo valida, y la comparación contra políticas alternativas.</p>
+    <div class="code-title">1. Programación dinámica (inducción hacia atrás)</div>
+    <pre class="code" id="code-dp"></pre>
+    <div class="code-title">2. Simulación Monte Carlo (validación)</div>
+    <pre class="code" id="code-sim"></pre>
+    <div class="code-title">3. Comparación con políticas alternativas</div>
+    <pre class="code" id="code-baselines"></pre>
+  </div>
+</div>
+
+<script>
+const DATA = {"states":[4,5,6,7,8,9,10],"T":20,"policy":{"1":{"4":3,"5":1,"6":1,"7":1,"8":1,"9":1,"10":1},"2":{"4":3,"5":3,"6":1,"7":1,"8":1,"9":1,"10":1},"3":{"4":3,"5":3,"6":3,"7":1,"8":1,"9":1,"10":1},"4":{"4":3,"5":3,"6":3,"7":3,"8":1,"9":1,"10":1},"5":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":1,"10":1},"6":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"7":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":2},"8":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"9":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"10":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"11":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"12":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"13":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"14":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"15":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"16":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"17":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"18":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"19":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1},"20":{"4":3,"5":3,"6":3,"7":3,"8":2,"9":2,"10":1}},"V":{"0":{"4":1.0,"5":1.0,"6":1.0,"7":1.0,"8":1.0,"9":1.0,"10":1.0},"1":{"4":0.588,"5":1.0,"6":1.0,"7":1.0,"8":1.0,"9":1.0,"10":1.0},"2":{"4":0.588,"5":0.8184959999999999,"6":1.0,"7":1.0,"8":1.0,"9":1.0,"10":1.0},"3":{"4":0.588,"5":0.8184959999999999,"6":0.9088504319999999,"7":1.0,"8":1.0,"9":1.0,"10":1.0},"4":{"4":0.588,"5":0.8184959999999999,"6":0.9088504319999999,"7":0.944269369344,"8":1.0,"9":1.0,"10":1.0},"5":{"4":0.588,"5":0.8184959999999999,"6":0.9088504319999999,"7":0.944269369344,"8":0.9626953751199744,"9":1.0,"10":1.0},"6":{"4":0.5660648805705449,"5":0.8184959999999999,"6":0.9088504319999999,"7":0.944269369344,"8":0.9626953751199744,"9":0.9737067561716968,"10":1.0},"7":{"4":0.5660648805705449,"5":0.7944370058126113,"6":0.9088504319999999,"7":0.944269369344,"8":0.9626953751199744,"9":0.9737067561716968,"10":0.9802871574882059},"8":{"4":0.5660648805705449,"5":0.7944370058126113,"6":0.8878281548816087,"7":0.9326782179470651,"8":0.9548417786632757,"9":0.965853159714998,"10":0.9737067561716968},"9":{"4":0.5614469658540061,"5":0.7898190910960724,"6":0.8839588789075012,"7":0.9205682093425483,"8":0.94529327470397,"9":0.9585382185879775,"10":0.965853159714998},"10":{"4":0.5558324455259344,"5":0.7837076831445011,"6":0.8775307416220792,"7":0.9144335384441592,"8":0.934927460733562,"9":0.9497031597935477,"10":0.9585382185879775},"11":{"4":0.5497373469113345,"5":0.7763117766047724,"6":0.8708338843223752,"7":0.9076125232455858,"8":0.9283471088596797,"9":0.940594276819827,"10":0.9497031597935477},"12":{"4":0.5458681000094917,"5":0.7685664747593014,"6":0.8627396743876768,"7":0.8997923406129772,"8":0.9207509827533115,"9":0.9331419711162939,"10":0.940594276819827},"13":{"4":0.5414015778589472,"5":0.7626677742201016,"6":0.8543474928757044,"7":0.8912633871300276,"8":0.9124486626353343,"9":0.9249735471783981,"10":0.9331419711162939},"14":{"4":0.5365198136295766,"5":0.7561138642616053,"6":0.8476532465106607,"7":0.883591696223657,"8":0.9043827614416361,"9":0.9170430820836073,"10":0.9249735471783981},"15":{"4":0.531777063727682,"5":0.7495370992079551,"6":0.8402810805314472,"7":0.876164518373077,"8":0.8965438588591312,"9":0.9089685994333956,"10":0.9170430820836073},"16":{"4":0.5271677890091692,"5":0.7429301454480879,"6":0.8330398751546796,"7":0.8686115158334884,"8":0.8889458800818599,"9":0.901124573956326,"10":0.9089685994333956},"17":{"4":0.5227001774881336,"5":0.736511022777914,"6":0.825702153482487,"7":0.8610251675274709,"8":0.8812153318763575,"9":0.8933671479511843,"10":0.901124573956326},"18":{"4":0.5181546151432982,"5":0.7301983525706447,"6":0.818573570415262,"7":0.8535364936514546,"8":0.873556670378617,"9":0.8856223125935115,"10":0.8933671479511843},"19":{"4":0.5136513221826267,"5":0.7238625289411575,"6":0.8115376372029891,"7":0.8461807225980791,"8":0.865990880349861,"9":0.8779549379620133,"10":0.8856223125935115},"20":{"4":0.5092026376457183,"5":0.7175888218172535,"6":0.8045000311499185,"7":0.8388686735885564,"8":0.8585095291618671,"9":0.8703480794343319,"10":0.8779549379620133}}};
+const SIM = {"4": {"theory": 0.5092026376457183, "sim": 0.50868, "se": 0.0011178655053270049, "ci95": 0.0021910163904409296}, "5": {"theory": 0.7175888218172535, "sim": 0.71796, "se": 0.0010062142873165734, "ci95": 0.001972180003140484}, "6": {"theory": 0.8045000311499185, "sim": 0.80473, "se": 0.0008863961504316229, "ci95": 0.0017373364548459809}, "7": {"theory": 0.8388686735885564, "sim": 0.840005, "se": 0.0008197456921966715, "ci95": 0.001606701556705476}, "8": {"theory": 0.8585095291618671, "sim": 0.858245, "se": 0.0007799375615233568, "ci95": 0.0015286776205857792}, "9": {"theory": 0.8703480794343319, "sim": 0.870795, "se": 0.0007500368923426367, "ci95": 0.0014700723089915678}, "10": {"theory": 0.8779549379620133, "sim": 0.87792, "se": 0.0007320398677667767, "ci95": 0.0014347981408228824}};
+const BASELINES = {"optimal (DP)": [0.50798, 0.71677, 0.80209, 0.84035, 0.85783, 0.87184, 0.87739], "siempre parcela 1": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "siempre parcela 2": [0.19082, 0.34574, 0.46967, 0.56016, 0.62167, 0.66788, 0.69045], "siempre parcela 3": [0.38989, 0.55049, 0.6162, 0.64078, 0.65374, 0.65647, 0.65941], "miope (max energia esperada)": [0.39238, 0.55186, 0.6148, 0.64139, 0.65523, 0.65629, 0.66019]};
+const BASELINE_LABELS = {"optimal (DP)": "óptima (DP)", "siempre parcela 1": "siempre parcela 1", "siempre parcela 2": "siempre parcela 2", "siempre parcela 3": "siempre parcela 3", "miope (max energia esperada)": "miope (máx. energía esperada)"};
+
+const states = DATA.states; // [4..10]
+const T = DATA.T;
+const policy = DATA.policy; // policy[t][x] -> patch id
+const V = DATA.V; // V[t][x] -> prob
+
+const root = document.querySelector('.viz-root');
+const cs = getComputedStyle(root);
+function cv(name){ return cs.getPropertyValue(name).trim(); }
+
+function isDark(){
+  const el = document.documentElement;
+  if (el.getAttribute('data-theme') === 'dark') return true;
+  if (el.getAttribute('data-theme') === 'light') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+const patchColor = { 1: '--s1', 2: '--s2', 3: '--s3' };
+const patchLabel = { 1: 'Parcela 1 (segura)', 2: 'Parcela 2 (intermedia)', 3: 'Parcela 3 (arriesgada)' };
+const lineVars = ['--l4','--l5','--l6','--l7','--l8','--l9','--l10'];
+const policyVars = ['--l4','--l5','--l6','--l7','--l8'];
+
+function ns(tag, attrs){
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+// ---------- Chart 1: policy heatmap ----------
+function drawPolicy(){
+  const svg = document.getElementById('chart-policy');
+  svg.innerHTML = '';
+  const W = 900, H = 340;
+  const marginL = 40, marginR = 12, marginT = 10, marginB = 30;
+  const rows = states.slice().reverse(); // 10..4 top to bottom
+  const cols = Array.from({length:T}, (_,i)=>i+1); // 1..20
+  const plotW = W - marginL - marginR;
+  const plotH = H - marginT - marginB;
+  const cw = plotW / cols.length;
+  const ch = plotH / rows.length;
+  const tt = document.getElementById('tt-policy');
+  const wrap = svg.parentElement;
+
+  rows.forEach((x, ri) => {
+    cols.forEach((t, ci) => {
+      const p = policy[t][x];
+      const rect = ns('rect', {
+        x: marginL + ci*cw, y: marginT + ri*ch, width: cw, height: ch,
+        fill: cv(patchColor[p]), class: 'cell'
+      });
+      rect.addEventListener('mousemove', (e)=>{
+        const b = wrap.getBoundingClientRect();
+        tt.style.left = (e.clientX - b.left + 12) + 'px';
+        tt.style.top = (e.clientY - b.top - 28) + 'px';
+        tt.style.opacity = 1;
+        tt.innerHTML = `<strong>x=${x}, t=${t}</strong><br>${patchLabel[p]}`;
+      });
+      rect.addEventListener('mouseleave', ()=>{ tt.style.opacity = 0; });
+      svg.appendChild(rect);
+    });
+  });
+
+  // row labels (energy)
+  rows.forEach((x, ri) => {
+    svg.appendChild(ns('text', {x: marginL - 8, y: marginT + ri*ch + ch/2 + 3, 'text-anchor':'end', class:'axis-label'})).textContent = x;
+  });
+  // col labels (periods) every other
+  cols.forEach((t, ci) => {
+    if (t % 2 === 1 || t === T) {
+      const txt = ns('text', {x: marginL + ci*cw + cw/2, y: H - marginB + 16, 'text-anchor':'middle', class:'axis-label'});
+      txt.textContent = t;
+      svg.appendChild(txt);
+    }
+  });
+  svg.appendChild(Object.assign(ns('text', {x: marginL, y: H-4, class:'axis-title'}))).textContent = 'periodos restantes t →';
+  const yTitle = ns('text', {x: -H/2, y: 14, class:'axis-title', transform:'rotate(-90)', 'text-anchor':'middle'});
+  yTitle.textContent = 'energía x';
+  svg.appendChild(yTitle);
+
+  // legend
+  const legend = document.getElementById('legend-policy');
+  legend.innerHTML = '';
+  [1,2,3].forEach(p=>{
+    const item = document.createElement('div'); item.className='legend-item';
+    item.innerHTML = `<span class="legend-swatch" style="background:${cv(patchColor[p])}"></span>${patchLabel[p]}`;
+    legend.appendChild(item);
+  });
+
+  // table view
+  const tbl = document.getElementById('table-policy');
+  let html = '<table><thead><tr><th>x \\ t</th>' + cols.map(t=>`<th>${t}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach(x=>{
+    html += `<tr><th>${x}</th>` + cols.map(t=>`<td>${policy[t][x]}</td>`).join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  tbl.innerHTML = html;
+}
+
+// ---------- Chart 2: survival probability lines ----------
+function drawLines(){
+  const svg = document.getElementById('chart-lines');
+  svg.innerHTML = '';
+  const W = 900, H = 360;
+  const marginL = 44, marginR = 16, marginT = 14, marginB = 32;
+  const plotW = W - marginL - marginR;
+  const plotH = H - marginT - marginB;
+  const ts = Array.from({length:T+1}, (_,i)=>i); // 0..20
+  const x = (t) => marginL + (t/T) * plotW;
+  const y = (v) => marginT + (1-v) * plotH;
+  const tt = document.getElementById('tt-lines');
+  const wrap = svg.parentElement;
+
+  // gridlines (y at 0,0.25,...,1)
+  for (let g=0; g<=1.0001; g+=0.25){
+    const gy = y(g);
+    svg.appendChild(ns('line', {x1:marginL, x2:W-marginR, y1:gy, y2:gy, class:'gridline'}));
+    svg.appendChild(Object.assign(ns('text', {x:marginL-8, y:gy+3, 'text-anchor':'end', class:'axis-label'}))).textContent = g.toFixed(2);
+  }
+  // x ticks
+  [0,5,10,15,20].forEach(t=>{
+    svg.appendChild(Object.assign(ns('text', {x:x(t), y:H-marginB+16, 'text-anchor':'middle', class:'axis-label'}))).textContent = t;
+  });
+  svg.appendChild(Object.assign(ns('text', {x:marginL, y:H-4, class:'axis-title'}))).textContent = 'periodos restantes t →';
+
+  svg.appendChild(ns('line', {x1:marginL, x2:marginL, y1:marginT, y2:H-marginB, class:'baseline'}));
+  svg.appendChild(ns('line', {x1:marginL, x2:W-marginR, y1:H-marginB, y2:H-marginB, class:'baseline'}));
+
+  states.forEach((x0, idx) => {
+    const color = cv(lineVars[idx]);
+    let d = '';
+    ts.forEach((t,i) => {
+      const val = V[t][x0];
+      d += (i===0?'M':'L') + x(t).toFixed(2) + ',' + y(val).toFixed(2) + ' ';
+    });
+    svg.appendChild(ns('path', {d, class:'line-path', stroke: color}));
+    ts.forEach(t => {
+      const val = V[t][x0];
+      const c = ns('circle', {cx:x(t), cy:y(val), class:'dot', fill: color});
+      c.addEventListener('mousemove', (e)=>{
+        const b = wrap.getBoundingClientRect();
+        tt.style.left = (e.clientX - b.left + 12) + 'px';
+        tt.style.top = (e.clientY - b.top - 28) + 'px';
+        tt.style.opacity = 1;
+        tt.innerHTML = `<strong>x₀=${x0}, t=${t}</strong><br>V = ${val.toFixed(4)}`;
+      });
+      c.addEventListener('mouseleave', ()=>{ tt.style.opacity = 0; });
+      svg.appendChild(c);
+    });
+  });
+
+  const legend = document.getElementById('legend-lines');
+  legend.innerHTML = '';
+  states.forEach((x0, idx)=>{
+    const item = document.createElement('div'); item.className='legend-item';
+    item.innerHTML = `<span class="legend-line" style="background:${cv(lineVars[idx])}"></span>x₀ = ${x0}`;
+    legend.appendChild(item);
+  });
+
+  const tbl = document.getElementById('table-lines');
+  let html = '<table><thead><tr><th>t \\ x₀</th>' + states.map(x0=>`<th>${x0}</th>`).join('') + '</tr></thead><tbody>';
+  ts.forEach(t=>{
+    html += `<tr><th>${t}</th>` + states.map(x0=>`<td>${V[t][x0].toFixed(4)}</td>`).join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  tbl.innerHTML = html;
+}
+
+// ---------- Chart 3: bar of final survival prob ----------
+function drawBar(){
+  const svg = document.getElementById('chart-bar');
+  svg.innerHTML = '';
+  const W = 900, H = 260;
+  const marginL = 44, marginR = 16, marginT = 14, marginB = 32;
+  const plotW = W - marginL - marginR;
+  const plotH = H - marginT - marginB;
+  const n = states.length;
+  const gap = 14;
+  const bw = (plotW - gap*(n-1)) / n;
+  const y = (v) => marginT + (1-v) * plotH;
+  const tt = document.getElementById('tt-bar');
+  const wrap = svg.parentElement;
+
+  for (let g=0; g<=1.0001; g+=0.25){
+    const gy = y(g);
+    svg.appendChild(ns('line', {x1:marginL, x2:W-marginR, y1:gy, y2:gy, class:'gridline'}));
+    svg.appendChild(Object.assign(ns('text', {x:marginL-8, y:gy+3, 'text-anchor':'end', class:'axis-label'}))).textContent = g.toFixed(2);
+  }
+  svg.appendChild(ns('line', {x1:marginL, x2:marginL, y1:marginT, y2:H-marginB, class:'baseline'}));
+  svg.appendChild(ns('line', {x1:marginL, x2:W-marginR, y1:H-marginB, y2:H-marginB, class:'baseline'}));
+
+  states.forEach((x0, i) => {
+    const val = V[T][x0];
+    const bx = marginL + i*(bw+gap);
+    const by = y(val);
+    const rect = ns('rect', {x:bx, y:by, width:bw, height:(H-marginB-by), fill: cv('--seq-400'), rx:4, ry:4});
+    rect.addEventListener('mousemove', (e)=>{
+      const b = wrap.getBoundingClientRect();
+      tt.style.left = (e.clientX - b.left + 12) + 'px';
+      tt.style.top = (e.clientY - b.top - 28) + 'px';
+      tt.style.opacity = 1;
+      tt.innerHTML = `<strong>x₀=${x0}</strong><br>V(x₀,20) = ${val.toFixed(4)}`;
+    });
+    rect.addEventListener('mouseleave', ()=>{ tt.style.opacity = 0; });
+    svg.appendChild(rect);
+    svg.appendChild(Object.assign(ns('text', {x:bx+bw/2, y:by-6, 'text-anchor':'middle', class:'axis-label'}))).textContent = val.toFixed(3);
+    svg.appendChild(Object.assign(ns('text', {x:bx+bw/2, y:H-marginB+16, 'text-anchor':'middle', class:'axis-label'}))).textContent = 'x₀='+x0;
+  });
+}
+
+// ---------- Chart 4: Monte Carlo validation (theory line vs sim dots+CI) ----------
+function drawSim(){
+  const svg = document.getElementById('chart-sim');
+  svg.innerHTML = '';
+  const W = 900, H = 300;
+  const marginL = 48, marginR = 16, marginT = 14, marginB = 32;
+  const plotW = W - marginL - marginR;
+  const plotH = H - marginT - marginB;
+  const n = states.length;
+  const x = (i) => marginL + (i/(n-1)) * plotW;
+  const yMin = 0.45, yMax = 0.92;
+  const y = (v) => marginT + (1-(v-yMin)/(yMax-yMin)) * plotH;
+  const tt = document.getElementById('tt-sim');
+  const wrap = svg.parentElement;
+
+  for (let g=0.5; g<=0.9001; g+=0.1){
+    const gy = y(g);
+    svg.appendChild(ns('line', {x1:marginL, x2:W-marginR, y1:gy, y2:gy, class:'gridline'}));
+    svg.appendChild(Object.assign(ns('text', {x:marginL-8, y:gy+3, 'text-anchor':'end', class:'axis-label'}))).textContent = g.toFixed(2);
+  }
+  svg.appendChild(ns('line', {x1:marginL, x2:marginL, y1:marginT, y2:H-marginB, class:'baseline'}));
+  svg.appendChild(ns('line', {x1:marginL, x2:W-marginR, y1:H-marginB, y2:H-marginB, class:'baseline'}));
+  states.forEach((x0,i)=>{
+    svg.appendChild(Object.assign(ns('text', {x:x(i), y:H-marginB+16, 'text-anchor':'middle', class:'axis-label'}))).textContent = 'x₀='+x0;
+  });
+  svg.appendChild(Object.assign(ns('text', {x:marginL, y:H-4, class:'axis-title'}))).textContent = 'energía inicial x₀';
+
+  // theory line
+  const colorTheory = cv('--l4'), colorSim = cv('--l5');
+  let d = '';
+  states.forEach((x0,i)=>{
+    const v = SIM[x0].theory;
+    d += (i===0?'M':'L') + x(i).toFixed(2) + ',' + y(v).toFixed(2) + ' ';
+  });
+  svg.appendChild(ns('path', {d, class:'line-path', stroke: colorTheory}));
+
+  states.forEach((x0,i)=>{
+    const r = SIM[x0];
+    const cx = x(i);
+    // 95% CI whisker for the simulated estimate
+    const yLo = y(r.sim - r.ci95), yHi = y(r.sim + r.ci95);
+    svg.appendChild(ns('line', {x1:cx, x2:cx, y1:yHi, y2:yLo, stroke: colorSim, class:'errbar'}));
+    svg.appendChild(ns('line', {x1:cx-5, x2:cx+5, y1:yHi, y2:yHi, stroke: colorSim, class:'errbar'}));
+    svg.appendChild(ns('line', {x1:cx-5, x2:cx+5, y1:yLo, y2:yLo, stroke: colorSim, class:'errbar'}));
+    const dot = ns('circle', {cx, cy:y(r.sim), class:'dot', fill: colorSim, r:4});
+    const dotTheory = ns('circle', {cx, cy:y(r.theory), r:3.2, fill: colorTheory});
+    [dot, dotTheory].forEach(el=>{
+      el.addEventListener('mousemove', (e)=>{
+        const b = wrap.getBoundingClientRect();
+        tt.style.left = (e.clientX - b.left + 12) + 'px';
+        tt.style.top = (e.clientY - b.top - 34) + 'px';
+        tt.style.opacity = 1;
+        tt.innerHTML = `<strong>x₀=${x0}</strong><br>teoría (DP) = ${r.theory.toFixed(4)}<br>simulación = ${r.sim.toFixed(4)} ± ${r.ci95.toFixed(4)}`;
+      });
+      el.addEventListener('mouseleave', ()=>{ tt.style.opacity = 0; });
+    });
+    svg.appendChild(dot);
+    svg.appendChild(dotTheory);
+  });
+
+  const legend = document.getElementById('legend-sim');
+  legend.innerHTML = `
+    <div class="legend-item"><span class="legend-line" style="background:${colorTheory}"></span>Teoría (DP), V(x₀,20)</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:${colorSim}"></span>Simulación Monte Carlo (N=200 000) ± IC 95%</div>`;
+
+  const tbl = document.getElementById('table-sim');
+  let html = '<table><thead><tr><th>x₀</th><th>Teoría</th><th>Simulación</th><th>IC 95%</th></tr></thead><tbody>';
+  states.forEach(x0=>{
+    const r = SIM[x0];
+    html += `<tr><td>${x0}</td><td>${r.theory.toFixed(4)}</td><td>${r.sim.toFixed(4)}</td><td>±${r.ci95.toFixed(4)}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  tbl.innerHTML = html;
+}
+
+// ---------- Chart 5: alternative policy comparison ----------
+function drawBaselines(){
+  const svg = document.getElementById('chart-baselines');
+  svg.innerHTML = '';
+  const W = 900, H = 320;
+  const marginL = 44, marginR = 16, marginT = 14, marginB = 32;
+  const plotW = W - marginL - marginR;
+  const plotH = H - marginT - marginB;
+  const n = states.length;
+  const x = (i) => marginL + (i/(n-1)) * plotW;
+  const y = (v) => marginT + (1-v) * plotH;
+  const tt = document.getElementById('tt-baselines');
+  const wrap = svg.parentElement;
+
+  for (let g=0; g<=1.0001; g+=0.25){
+    const gy = y(g);
+    svg.appendChild(ns('line', {x1:marginL, x2:W-marginR, y1:gy, y2:gy, class:'gridline'}));
+    svg.appendChild(Object.assign(ns('text', {x:marginL-8, y:gy+3, 'text-anchor':'end', class:'axis-label'}))).textContent = g.toFixed(2);
+  }
+  svg.appendChild(ns('line', {x1:marginL, x2:marginL, y1:marginT, y2:H-marginB, class:'baseline'}));
+  svg.appendChild(ns('line', {x1:marginL, x2:W-marginR, y1:H-marginB, y2:H-marginB, class:'baseline'}));
+  states.forEach((x0,i)=>{
+    svg.appendChild(Object.assign(ns('text', {x:x(i), y:H-marginB+16, 'text-anchor':'middle', class:'axis-label'}))).textContent = 'x₀='+x0;
+  });
+  svg.appendChild(Object.assign(ns('text', {x:marginL, y:H-4, class:'axis-title'}))).textContent = 'energía inicial x₀';
+
+  const names = Object.keys(BASELINES);
+  names.forEach((name, idx) => {
+    const color = cv(policyVars[idx]);
+    const row = BASELINES[name];
+    let d = '';
+    row.forEach((v,i)=>{ d += (i===0?'M':'L') + x(i).toFixed(2) + ',' + y(v).toFixed(2) + ' '; });
+    svg.appendChild(ns('path', {d, class:'line-path', stroke: color}));
+    row.forEach((v,i)=>{
+      const c = ns('circle', {cx:x(i), cy:y(v), class:'dot', fill: color});
+      c.addEventListener('mousemove', (e)=>{
+        const b = wrap.getBoundingClientRect();
+        tt.style.left = (e.clientX - b.left + 12) + 'px';
+        tt.style.top = (e.clientY - b.top - 28) + 'px';
+        tt.style.opacity = 1;
+        tt.innerHTML = `<strong>${BASELINE_LABELS[name]}</strong><br>x₀=${states[i]} → ${v.toFixed(4)}`;
+      });
+      c.addEventListener('mouseleave', ()=>{ tt.style.opacity = 0; });
+      svg.appendChild(c);
+    });
+  });
+
+  const legend = document.getElementById('legend-baselines');
+  legend.innerHTML = '';
+  names.forEach((name, idx)=>{
+    const item = document.createElement('div'); item.className='legend-item';
+    item.innerHTML = `<span class="legend-line" style="background:${cv(policyVars[idx])}"></span>${BASELINE_LABELS[name]}`;
+    legend.appendChild(item);
+  });
+
+  const tbl = document.getElementById('table-baselines');
+  let html = '<table><thead><tr><th>política</th>' + states.map(x0=>`<th>x₀=${x0}</th>`).join('') + '</tr></thead><tbody>';
+  names.forEach(name=>{
+    html += `<tr><th>${BASELINE_LABELS[name]}</th>` + BASELINES[name].map(v=>`<td>${v.toFixed(4)}</td>`).join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  tbl.innerHTML = html;
+}
+
+// ---------- source code (display only) ----------
+document.getElementById('code-dp').textContent =
+`XMIN, XMAX, T = 4, 10, 20          # energía mínima viva, máxima, horizonte
+PATCHES = {                        # p: riesgo depredación, f: prob. comida, e: energía si hay comida
+    1: dict(p=0.000, f=0.0, e=0),
+    2: dict(p=0.004, f=0.4, e=3),
+    3: dict(p=0.02,  f=0.6, e=5),
+}
+STATES = list(range(XMIN, XMAX + 1))
+
+def solve():
+    V = {0: {x: 1.0 for x in STATES}}      # V(x,0)=1: ya sobrevivió todo el horizonte
+    policy = {}
+
+    def S(y, t):                            # energía truncada en XMAX; muerte si y<XMIN
+        y = min(y, XMAX)
+        return V[t][y] if y >= XMIN else 0.0
+
+    for t in range(1, T + 1):
+        V[t], policy[t] = {}, {}
+        for x in STATES:
+            best_val, best_i = -1, None
+            for i, par in PATCHES.items():
+                p, f, e = par['p'], par['f'], par['e']
+                # ley de probabilidad total: sobrevive depredación, y (comida | sin comida)
+                val = (1 - p) * (f * S(x - 1 + e, t - 1) + (1 - f) * S(x - 1, t - 1))
+                if val > best_val:
+                    best_val, best_i = val, i
+            V[t][x], policy[t][x] = best_val, best_i
+    return V, policy
+
+V, policy = solve()
+for x0 in STATES:
+    print(f"x0={x0}: P(sobrevivir 20 periodos) = {V[20][x0]:.4f}")`;
+
+document.getElementById('code-sim').textContent =
+`import random
+
+def simulate_one(x0, choose, rng):
+    x, t_left = x0, T
+    while t_left > 0:
+        i = choose(x, t_left)
+        par = PATCHES[i]
+        if rng.random() < par['p']:
+            return False                     # muerte por depredación
+        x -= 1                               # costo de forrajear
+        if rng.random() < par['f']:
+            x = min(x + par['e'], XMAX)       # encontró comida
+        if x < XMIN:
+            return False                     # muerte por inanición
+        t_left -= 1
+    return True
+
+rng = random.Random(42)
+N = 200_000
+for x0 in STATES:
+    survivors = sum(
+        simulate_one(x0, lambda x, t: policy[t][x], rng) for _ in range(N)
+    )
+    p_hat = survivors / N
+    se = (p_hat * (1 - p_hat) / N) ** 0.5
+    print(f"x0={x0}: teoría={V[20][x0]:.4f}  "
+          f"simulación={p_hat:.4f} ± {1.96*se:.4f} (IC 95%)")`;
+
+document.getElementById('code-baselines').textContent =
+`ALT_POLICIES = {
+    "óptima (DP)":       lambda x, t: policy[t][x],
+    "siempre parcela 1": lambda x, t: 1,
+    "siempre parcela 2": lambda x, t: 2,
+    "siempre parcela 3": lambda x, t: 3,
+    "miope (max. energía esperada)": lambda x, t: max(
+        PATCHES,
+        key=lambda i: (1 - PATCHES[i]['p']) * PATCHES[i]['f'] * PATCHES[i]['e']
+                      - PATCHES[i]['p'] * 5,
+    ),
+}
+
+for name, choose in ALT_POLICIES.items():
+    row = [
+        sum(simulate_one(x0, choose, rng) for _ in range(100_000)) / 100_000
+        for x0 in STATES
+    ]
+    print(name, row)`;
+
+function drawAll(){ drawPolicy(); drawLines(); drawBar(); drawSim(); drawBaselines(); }
+drawAll();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawAll);
+new MutationObserver(drawAll).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+</script>
