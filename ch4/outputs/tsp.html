@@ -1,0 +1,253 @@
+<title>El problema del agente viajero: DP exacta vs. heurística</title>
+<style>
+.viz-root{
+  color-scheme: light;
+  --surface-1:      #fcfcfb;
+  --page:           #f9f9f7;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --grid:           #e1e0d9;
+  --axis:           #c3c2b7;
+  --border:         rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])) .viz-root{
+    color-scheme: dark;
+    --surface-1:#1a1a19; --page:#0d0d0d; --text-primary:#ffffff; --text-secondary:#c3c2b7;
+    --text-muted:#898781; --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+  }
+}
+:root[data-theme="dark"] .viz-root{
+  color-scheme: dark;
+  --surface-1:#1a1a19; --page:#0d0d0d; --text-primary:#ffffff; --text-secondary:#c3c2b7;
+  --text-muted:#898781; --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+}
+* { box-sizing: border-box; }
+.viz-root{
+  background: var(--page); color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 32px 20px 60px; max-width: 980px; margin: 0 auto;
+}
+h1{ font-size: 1.5rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+.subtitle{ color: var(--text-secondary); font-size: 0.95rem; margin: 0 0 28px; }
+.card{ background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin-bottom: 22px; }
+.card h2{ font-size: 1.05rem; margin: 0 0 6px; }
+.card p{ color: var(--text-secondary); font-size: 0.88rem; line-height: 1.55; margin: 0 0 10px; }
+.card p:last-child{ margin-bottom: 0; }
+code{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+table{ border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+th, td{ text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child{ text-align: left; }
+thead th{ color: var(--text-muted); font-weight: 600; }
+.legend{ display:flex; flex-wrap:wrap; gap: 14px; margin: 10px 0 4px; font-size: 0.82rem; color: var(--text-secondary); }
+.legend-item{ display:flex; align-items:center; gap:6px; }
+.legend-line{ width:16px; height:2px; border-radius:2px; flex:none; }
+.legend-swatch{ width:12px; height:12px; border-radius:3px; flex:none; }
+svg{ display:block; width:100%; height:auto; overflow: visible; }
+.axis-label{ fill: var(--text-muted); font-size: 10px; }
+.axis-title{ fill: var(--text-secondary); font-size: 11px; }
+.gridline{ stroke: var(--grid); stroke-width: 1; }
+.baseline{ stroke: var(--axis); stroke-width: 1; }
+.line-path{ fill:none; stroke-width:2; }
+.route-path{ fill:none; stroke-width:1.5; stroke-linejoin:round; }
+.dot{ r:3.5; stroke: var(--surface-1); stroke-width:1; }
+.dot:hover{ r:6; }
+.tooltip{ position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.78rem; color: var(--text-primary); box-shadow: 0 4px 14px rgba(0,0,0,0.18); opacity: 0; transition: opacity 0.1s; white-space: nowrap; z-index: 5; }
+.chart-wrap{ position: relative; }
+details.tableview{ margin-top: 10px; }
+details.tableview summary{ cursor: pointer; font-size: 0.8rem; color: var(--text-secondary); user-select: none; }
+details.tableview .scroll{ overflow-x:auto; margin-top: 8px; }
+.callout{ border-left: 3px solid var(--s3); padding: 8px 12px; background: var(--page); border-radius: 0 8px 8px 0; font-size: 0.85rem; color: var(--text-secondary); margin-top: 10px; }
+pre.code{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; line-height: 1.55; background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; color: var(--text-primary); margin: 0; white-space: pre; }
+</style>
+
+<div class="viz-root">
+  <h1>El agente viajero: programación dinámica exacta vs. heurística</h1>
+  <p class="subtitle">Held-Karp (Bellman sobre subconjuntos) contra vecino-más-cercano + 2-opt, sobre datos reales de ciudades de EE.UU.</p>
+
+  <div class="card">
+    <h2>Dos técnicas, el mismo principio de optimalidad</h2>
+    <p>El TSP también se puede resolver con una recursión de Bellman — <strong>Held-Karp</strong> — pero la "etapa" ya no es el tiempo, sino el tamaño del subconjunto de ciudades visitadas: <code>dp[S][j]</code> = costo mínimo de partir de la ciudad 0, visitar exactamente el conjunto <code>S</code> y terminar en <code>j</code>. Es exacta, pero <code>O(2ⁿ·n²)</code> — en Python puro es práctica hasta ~15-18 ciudades. Para el conjunto completo (50 ciudades) eso es inviable (<code>2⁵⁰</code> subconjuntos), así que ahí se usa una heurística: vecino más cercano + mejora local 2-opt.</p>
+    <p>Datos: las 50 ciudades más pobladas de EE.UU. (<a href="https://github.com/plotly/datasets/blob/master/us-cities-top-1k.csv" target="_blank" rel="noopener">plotly/datasets, us-cities-top-1k.csv</a>, derivado de datos censales), con distancia real sobre la esfera (fórmula de haversine).</p>
+  </div>
+
+  <div class="card">
+    <h2>Ruta óptima exacta — 15 ciudades más pobladas</h2>
+    <p>Resuelta con Held-Karp: <strong id="opt-len-label"></strong>.</p>
+    <div class="chart-wrap">
+      <svg id="map15" viewBox="0 0 900 460"></svg>
+      <div class="tooltip" id="tt15"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>¿Qué tan cerca llega la heurística del óptimo?</h2>
+    <p>Mismas 15 ciudades, comparando tres niveles de heurística contra el óptimo exacto.</p>
+    <div class="chart-wrap">
+      <svg id="chart-gap" viewBox="0 0 900 220"></svg>
+      <div class="tooltip" id="tt-gap"></div>
+    </div>
+    <div class="callout">Con un solo punto de partida, vecino-más-cercano se queda 25% por encima del óptimo; agregar 2-opt lo baja a 11%; probando 2-opt desde las 15 ciudades como punto de partida y quedándose con la mejor, la heurística <strong>encuentra el óptimo exacto</strong> en esta instancia — aunque nada lo garantiza en general.</div>
+  </div>
+
+  <div class="card">
+    <h2>Ruta heurística — 50 ciudades más pobladas</h2>
+    <p>Vecino más cercano + 2-opt con 10 reinicios: <strong id="heur-len-label"></strong>. Held-Karp exacto es inviable aquí.</p>
+    <div class="chart-wrap">
+      <svg id="map50" viewBox="0 0 900 460"></svg>
+      <div class="tooltip" id="tt50"></div>
+    </div>
+    <details class="tableview"><summary>Ver las 50 ciudades</summary><div class="scroll" id="table50"></div></details>
+  </div>
+
+  <div class="card">
+    <h2>Código fuente</h2>
+    <p>Python puro — Held-Karp exacto y la heurística vecino-más-cercano + 2-opt.</p>
+    <pre class="code" id="code-block"></pre>
+  </div>
+</div>
+
+<script>
+const DATA = {"cities15":[{"name":"New York","state":"New York","pop":8405837,"lat":40.7128,"lon":-74.0059},{"name":"Los Angeles","state":"California","pop":3884307,"lat":34.0522,"lon":-118.2437},{"name":"Chicago","state":"Illinois","pop":2718782,"lat":41.8781,"lon":-87.6298},{"name":"Houston","state":"Texas","pop":2195914,"lat":29.7604,"lon":-95.3698},{"name":"Philadelphia","state":"Pennsylvania","pop":1553165,"lat":39.9526,"lon":-75.1652},{"name":"Phoenix","state":"Arizona","pop":1513367,"lat":33.4484,"lon":-112.074},{"name":"San Antonio","state":"Texas","pop":1409019,"lat":29.4241,"lon":-98.4936},{"name":"San Diego","state":"California","pop":1355896,"lat":32.7157,"lon":-117.1611},{"name":"Dallas","state":"Texas","pop":1257676,"lat":32.7767,"lon":-96.797},{"name":"San Jose","state":"California","pop":998537,"lat":37.3382,"lon":-121.8863},{"name":"Austin","state":"Texas","pop":885400,"lat":30.2672,"lon":-97.7431},{"name":"Indianapolis","state":"Indiana","pop":843393,"lat":39.7684,"lon":-86.1581},{"name":"Jacksonville","state":"Florida","pop":842583,"lat":30.3322,"lon":-81.6557},{"name":"San Francisco","state":"California","pop":837442,"lat":37.7749,"lon":-122.4194},{"name":"Columbus","state":"Ohio","pop":822553,"lat":39.9612,"lon":-82.9988}],"opt_tour":[0,14,11,2,13,9,1,7,5,6,10,8,3,12,4],"opt_len":10313.621198365121,"comparison":{"nn":12895.259869682905,"single_2opt":11437.111351010546,"multi_2opt":10313.621198365123,"optimal":10313.621198365121},"cities50":[{"name":"New York","state":"New York","pop":8405837,"lat":40.7128,"lon":-74.0059},{"name":"Los Angeles","state":"California","pop":3884307,"lat":34.0522,"lon":-118.2437},{"name":"Chicago","state":"Illinois","pop":2718782,"lat":41.8781,"lon":-87.6298},{"name":"Houston","state":"Texas","pop":2195914,"lat":29.7604,"lon":-95.3698},{"name":"Philadelphia","state":"Pennsylvania","pop":1553165,"lat":39.9526,"lon":-75.1652},{"name":"Phoenix","state":"Arizona","pop":1513367,"lat":33.4484,"lon":-112.074},{"name":"San Antonio","state":"Texas","pop":1409019,"lat":29.4241,"lon":-98.4936},{"name":"San Diego","state":"California","pop":1355896,"lat":32.7157,"lon":-117.1611},{"name":"Dallas","state":"Texas","pop":1257676,"lat":32.7767,"lon":-96.797},{"name":"San Jose","state":"California","pop":998537,"lat":37.3382,"lon":-121.8863},{"name":"Austin","state":"Texas","pop":885400,"lat":30.2672,"lon":-97.7431},{"name":"Indianapolis","state":"Indiana","pop":843393,"lat":39.7684,"lon":-86.1581},{"name":"Jacksonville","state":"Florida","pop":842583,"lat":30.3322,"lon":-81.6557},{"name":"San Francisco","state":"California","pop":837442,"lat":37.7749,"lon":-122.4194},{"name":"Columbus","state":"Ohio","pop":822553,"lat":39.9612,"lon":-82.9988},{"name":"Charlotte","state":"North Carolina","pop":792862,"lat":35.2271,"lon":-80.8431},{"name":"Fort Worth","state":"Texas","pop":792727,"lat":32.7555,"lon":-97.3308},{"name":"Detroit","state":"Michigan","pop":688701,"lat":42.3314,"lon":-83.0458},{"name":"El Paso","state":"Texas","pop":674433,"lat":31.7776,"lon":-106.4425},{"name":"Memphis","state":"Tennessee","pop":653450,"lat":35.1495,"lon":-90.049},{"name":"Seattle","state":"Washington","pop":652405,"lat":47.6062,"lon":-122.3321},{"name":"Denver","state":"Colorado","pop":649495,"lat":39.7392,"lon":-104.9903},{"name":"Washington","state":"District of Columbia","pop":646449,"lat":38.9072,"lon":-77.0369},{"name":"Boston","state":"Massachusetts","pop":645966,"lat":42.3601,"lon":-71.0589},{"name":"Nashville","state":"Tennessee","pop":634464,"lat":36.1627,"lon":-86.7816},{"name":"Baltimore","state":"Maryland","pop":622104,"lat":39.2904,"lon":-76.6122},{"name":"Oklahoma City","state":"Oklahoma","pop":610613,"lat":35.4676,"lon":-97.5164},{"name":"Louisville","state":"Kentucky","pop":609893,"lat":38.2527,"lon":-85.7585},{"name":"Portland","state":"Oregon","pop":609456,"lat":45.5231,"lon":-122.6765},{"name":"Las Vegas","state":"Nevada","pop":603488,"lat":36.1699,"lon":-115.1398},{"name":"Milwaukee","state":"Wisconsin","pop":599164,"lat":43.0389,"lon":-87.9065},{"name":"Albuquerque","state":"New Mexico","pop":556495,"lat":35.0853,"lon":-106.6056},{"name":"Tucson","state":"Arizona","pop":526116,"lat":32.2217,"lon":-110.9265},{"name":"Fresno","state":"California","pop":509924,"lat":36.7468,"lon":-119.7726},{"name":"Sacramento","state":"California","pop":479686,"lat":38.5816,"lon":-121.4944},{"name":"Long Beach","state":"California","pop":469428,"lat":33.7701,"lon":-118.1937},{"name":"Kansas City","state":"Missouri","pop":467007,"lat":39.0997,"lon":-94.5786},{"name":"Mesa","state":"Arizona","pop":457587,"lat":33.4152,"lon":-111.8315},{"name":"Virginia Beach","state":"Virginia","pop":448479,"lat":36.8529,"lon":-75.978},{"name":"Atlanta","state":"Georgia","pop":447841,"lat":33.749,"lon":-84.388},{"name":"Colorado Springs","state":"Colorado","pop":439886,"lat":38.8339,"lon":-104.8214},{"name":"Omaha","state":"Nebraska","pop":434353,"lat":41.2524,"lon":-95.998},{"name":"Raleigh","state":"North Carolina","pop":431746,"lat":35.7796,"lon":-78.6382},{"name":"Miami","state":"Florida","pop":417650,"lat":25.7617,"lon":-80.1918},{"name":"Oakland","state":"California","pop":406253,"lat":37.8044,"lon":-122.2711},{"name":"Minneapolis","state":"Minnesota","pop":400070,"lat":44.9778,"lon":-93.265},{"name":"Tulsa","state":"Oklahoma","pop":398121,"lat":36.154,"lon":-95.9928},{"name":"Cleveland","state":"Ohio","pop":390113,"lat":41.4993,"lon":-81.6944},{"name":"Wichita","state":"Kansas","pop":386552,"lat":37.6889,"lon":-97.3361},{"name":"Arlington","state":"Texas","pop":379577,"lat":32.7357,"lon":-97.1081}],"heur_tour50":[1,35,7,29,5,37,32,18,31,40,21,48,46,26,8,49,16,10,6,3,43,12,39,15,42,38,23,0,4,25,22,14,47,17,30,2,11,27,24,19,36,41,45,20,28,34,44,13,9,33],"heur_len50":17147.24733418318};
+const root = document.querySelector('.viz-root');
+const cs = getComputedStyle(root);
+function cv(name){ return cs.getPropertyValue(name).trim(); }
+function ns(tag, attrs){ const el = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in attrs) el.setAttribute(k, attrs[k]); return el; }
+
+function project(cities, W, H, pad){
+  const lats = cities.map(c=>c.lat), lons = cities.map(c=>c.lon);
+  const latMin=Math.min(...lats), latMax=Math.max(...lats);
+  const lonMin=Math.min(...lons), lonMax=Math.max(...lons);
+  const midLat = (latMin+latMax)/2;
+  const kx = Math.cos(midLat*Math.PI/180);
+  const spanX = (lonMax-lonMin)*kx, spanY = (latMax-latMin);
+  const scale = Math.min((W-2*pad)/spanX, (H-2*pad)/spanY);
+  return cities.map(c=>({
+    ...c,
+    x: pad + ((c.lon-lonMin)*kx)*scale + (W-2*pad-spanX*scale)/2,
+    y: H-pad - ((c.lat-latMin))*scale - (H-2*pad-spanY*scale)/2,
+  }));
+}
+
+function drawMap(svgId, ttId, citiesRaw, tourOrder, color, tourLabel){
+  const svg = document.getElementById(svgId); svg.innerHTML='';
+  const W=900,H=460, pad=36;
+  const cities = project(citiesRaw, W, H, pad);
+  const tt = document.getElementById(ttId); const wrap = svg.parentElement;
+
+  // route path (closed tour)
+  let d='';
+  tourOrder.forEach((idx,i)=>{
+    const c = cities[idx];
+    d += (i===0?'M':'L') + c.x.toFixed(2)+','+c.y.toFixed(2)+' ';
+  });
+  d += 'Z';
+  svg.appendChild(ns('path',{d, class:'route-path', stroke: color, opacity:0.75}));
+
+  cities.forEach(c=>{
+    const r = 2.5 + Math.min(6, Math.log10(c.pop/50000+1)*2.2);
+    const dot = ns('circle',{cx:c.x, cy:c.y, r:r, fill: color, class:'dot'});
+    dot.addEventListener('mousemove',(e)=>{
+      const b=wrap.getBoundingClientRect();
+      tt.style.left=(e.clientX-b.left+12)+'px'; tt.style.top=(e.clientY-b.top-28)+'px'; tt.style.opacity=1;
+      tt.innerHTML=`<strong>${c.name}, ${c.state}</strong><br>población: ${c.pop.toLocaleString()}`;
+    });
+    dot.addEventListener('mouseleave',()=>{tt.style.opacity=0;});
+    svg.appendChild(dot);
+  });
+}
+
+function drawGap(){
+  const svg = document.getElementById('chart-gap'); svg.innerHTML='';
+  const W=900,H=220, mL=200,mR=60,mT=14,mB=14;
+  const pW=W-mL-mR, pH=H-mT-mB;
+  const comp = DATA.comparison;
+  const rows = [
+    {label:'vecino más cercano', val: comp.nn, color: cv('--s2')},
+    {label:'+ 2-opt (1 inicio)', val: comp.single_2opt, color: cv('--s4')},
+    {label:'+ 2-opt (multi-inicio)', val: comp.multi_2opt, color: cv('--s3')},
+    {label:'óptimo exacto (Held-Karp)', val: comp.optimal, color: cv('--s1')},
+  ];
+  const xMax = Math.max(...rows.map(r=>r.val)) * 1.05;
+  const x = v => mL + (v/xMax)*pW;
+  const bh = pH/rows.length - 12;
+  const tt = document.getElementById('tt-gap'); const wrap = svg.parentElement;
+
+  rows.forEach((r,i)=>{
+    const by = mT + i*(pH/rows.length) + 6;
+    svg.appendChild(Object.assign(ns('text',{x:mL-10,y:by+bh/2+4,'text-anchor':'end',class:'axis-label'}))).textContent=r.label;
+    const rect = ns('rect',{x:mL,y:by,width:(x(r.val)-mL),height:bh,fill:r.color,rx:4,ry:4});
+    rect.addEventListener('mousemove',(e)=>{
+      const b=wrap.getBoundingClientRect();
+      tt.style.left=(e.clientX-b.left+12)+'px'; tt.style.top=(e.clientY-b.top-28)+'px'; tt.style.opacity=1;
+      const gap = 100*(r.val/comp.optimal-1);
+      tt.innerHTML=`<strong>${r.label}</strong><br>${r.val.toFixed(1)} km${gap>0.01?` (+${gap.toFixed(2)}% vs óptimo)`:' (= óptimo)'}`;
+    });
+    rect.addEventListener('mouseleave',()=>{tt.style.opacity=0;});
+    svg.appendChild(rect);
+    svg.appendChild(Object.assign(ns('text',{x:x(r.val)+8,y:by+bh/2+4,class:'axis-label'}))).textContent=r.val.toFixed(0)+' km';
+  });
+}
+
+function drawTable50(){
+  const tbl = document.getElementById('table50');
+  let html='<table><thead><tr><th>orden en la ruta</th><th>ciudad</th><th>estado</th><th>población</th></tr></thead><tbody>';
+  DATA.heur_tour50.forEach((idx,i)=>{
+    const c = DATA.cities50[idx];
+    html += `<tr><td>${i+1}</td><td>${c.name}</td><td>${c.state}</td><td>${c.pop.toLocaleString()}</td></tr>`;
+  });
+  html+='</tbody></table>'; tbl.innerHTML=html;
+}
+
+document.getElementById('opt-len-label').textContent = DATA.opt_len.toFixed(0) + ' km de ruta total (cerrada)';
+document.getElementById('heur-len-label').textContent = DATA.heur_len50.toFixed(0) + ' km de ruta total (cerrada)';
+
+document.getElementById('code-block').textContent = `def held_karp(D):
+    n = len(D)
+    FULL = (1 << n) - 1
+    dp = [[math.inf] * n for _ in range(1 << n)]
+    parent = [[-1] * n for _ in range(1 << n)]
+    dp[1][0] = 0
+    for mask in range(1 << n):
+        if not (mask & 1):
+            continue
+        for j in range(n):
+            if not (mask & (1 << j)):
+                continue
+            cur = dp[mask][j]
+            if cur == math.inf:
+                continue
+            for k in range(n):
+                if mask & (1 << k):
+                    continue
+                nmask = mask | (1 << k)
+                nd = cur + D[j][k]
+                if nd < dp[nmask][k]:
+                    dp[nmask][k] = nd
+                    parent[nmask][k] = j
+    best, best_j = math.inf, -1
+    for j in range(1, n):
+        val = dp[FULL][j] + D[j][0]
+        if val < best:
+            best, best_j = val, j
+    # reconstruir ruta desde parent[][] ...
+    return best, tour
+
+def two_opt(D, tour):
+    # mejora local: invierte segmentos mientras reduzcan la longitud total
+    ...`;
+
+function drawAll(){
+  drawMap('map15','tt15', DATA.cities15, DATA.opt_tour, cv('--s1'));
+  drawGap();
+  drawMap('map50','tt50', DATA.cities50, DATA.heur_tour50, cv('--s3'));
+  drawTable50();
+}
+drawAll();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawAll);
+new MutationObserver(drawAll).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+</script>
