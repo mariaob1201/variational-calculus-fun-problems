@@ -1,0 +1,271 @@
+<title>Reemplazo de equipo: inducción hacia atrás (Problema 4.20)</title>
+<style>
+.viz-root{
+  color-scheme: light;
+  --surface-1:      #fcfcfb;
+  --page:           #f9f9f7;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --grid:           #e1e0d9;
+  --axis:           #c3c2b7;
+  --border:         rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+  --seq-400:#3987e5;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])) .viz-root{
+    color-scheme: dark;
+    --surface-1:#1a1a19; --page:#0d0d0d; --text-primary:#ffffff; --text-secondary:#c3c2b7;
+    --text-muted:#898781; --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+  }
+}
+:root[data-theme="dark"] .viz-root{
+  color-scheme: dark;
+  --surface-1:#1a1a19; --page:#0d0d0d; --text-primary:#ffffff; --text-secondary:#c3c2b7;
+  --text-muted:#898781; --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+}
+* { box-sizing: border-box; }
+.viz-root{
+  background: var(--page); color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 32px 20px 60px; max-width: 980px; margin: 0 auto;
+}
+h1{ font-size: 1.5rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+.subtitle{ color: var(--text-secondary); font-size: 0.95rem; margin: 0 0 28px; }
+.card{ background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin-bottom: 22px; }
+.card h2{ font-size: 1.05rem; margin: 0 0 6px; }
+.card p{ color: var(--text-secondary); font-size: 0.88rem; line-height: 1.55; margin: 0 0 10px; }
+.card p:last-child{ margin-bottom: 0; }
+code{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+.formula-block{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--text-primary); line-height: 1.7; }
+table{ border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+th, td{ text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child{ text-align: left; }
+thead th{ color: var(--text-muted); font-weight: 600; }
+.legend{ display:flex; flex-wrap:wrap; gap: 14px; margin: 10px 0 4px; font-size: 0.82rem; color: var(--text-secondary); }
+.legend-item{ display:flex; align-items:center; gap:6px; }
+.legend-line{ width:16px; height:2px; border-radius:2px; flex:none; }
+.legend-swatch{ width:12px; height:12px; border-radius:3px; flex:none; }
+svg{ display:block; width:100%; height:auto; overflow: visible; }
+.axis-label{ fill: var(--text-muted); font-size: 10px; }
+.axis-title{ fill: var(--text-secondary); font-size: 11px; }
+.gridline{ stroke: var(--grid); stroke-width: 1; }
+.baseline{ stroke: var(--axis); stroke-width: 1; }
+.line-path{ fill:none; stroke-width:2; }
+.line-path.dashed{ stroke-dasharray: 4 3; }
+.dot{ r:3.2; }
+.dot:hover{ r:5; }
+.tooltip{ position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.78rem; color: var(--text-primary); box-shadow: 0 4px 14px rgba(0,0,0,0.18); opacity: 0; transition: opacity 0.1s; white-space: nowrap; z-index: 5; }
+.chart-wrap{ position: relative; }
+details.tableview{ margin-top: 10px; }
+details.tableview summary{ cursor: pointer; font-size: 0.8rem; color: var(--text-secondary); user-select: none; }
+details.tableview .scroll{ overflow-x:auto; margin-top: 8px; }
+.callout{ border-left: 3px solid var(--s3); padding: 8px 12px; background: var(--page); border-radius: 0 8px 8px 0; font-size: 0.85rem; color: var(--text-secondary); margin-top: 10px; }
+.callout.warn{ border-left-color: var(--s4); }
+pre.code{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; line-height: 1.55; background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; color: var(--text-primary); margin: 0; white-space: pre; }
+</style>
+
+<div class="viz-root">
+  <h1>Reemplazo de equipo: inducción hacia atrás</h1>
+  <p class="subtitle">Problema 4.20 (Puterman, sección 4.7.5) — MDP de horizonte finito resuelto con un solver genérico de programación dinámica</p>
+
+  <div class="card">
+    <h2>Modelo</h2>
+    <p>Estado <code>s</code> = edad del equipo. Horizonte de <code>N=3</code> épocas. En cada época <code>t=1,2</code> se elige entre:</p>
+    <table>
+      <thead><tr><th>Acción</th><th>Costo/beneficio inmediato</th><th>Transición</th></tr></thead>
+      <tbody>
+        <tr><td>Mantener (a=0)</td><td>&minus;h(s), con h(s)=2s</td><td>s → s+X</td></tr>
+        <tr><td>Reemplazar (a=1)</td><td>R&minus;K = 0&minus;5 = &minus;5</td><td>s → X</td></tr>
+      </tbody>
+    </table>
+    <p>El deterioro <code>X</code> por periodo es aleatorio. La recompensa terminal es <code>r₃(s) = max{5&minus;s, 0}</code>. Ecuación de Bellman para <code>t=1,2</code>:</p>
+    <div class="formula-block">u*ₜ(s) = max{ &minus;h(s) + E[u*ₜ₊₁(s+X)],&nbsp;&nbsp; R&minus;K + E[u*ₜ₊₁(X)] }<br>u*₃(s) = max{5&minus;s, 0}</div>
+  </div>
+
+  <div class="card">
+    <h2>Reconstruyendo la distribución de X</h2>
+    <p>El enunciado da <code>π=0.4</code> y afirma <code>E(X)=1/π</code>, pero no especifica la fórmula de la masa de probabilidad — solo los valores intermedios <code>f(s)=E[max{5&minus;s&minus;X,0}]</code>. Usando la identidad <code>f(s)&minus;f(s+1) = P(X≤4&minus;s)</code> se puede reconstruir la distribución exacta a partir de esos valores y verificar contra dos convenciones geométricas candidatas.</p>
+    <div class="legend" id="legend-dist"></div>
+    <div class="chart-wrap">
+      <svg id="chart-dist" viewBox="0 0 900 260"></svg>
+      <div class="tooltip" id="tt-dist"></div>
+    </div>
+    <div class="callout">La convención <strong>P(X=j) = (1&minus;π)·πʲ</strong>, j=0,1,2,… reproduce exactamente los valores del PDF (target). La otra convención candidata, P(X=j)=π(1&minus;π)ʲ, no coincide. La afirmación del enunciado "E(X)=1/π" es inconsistente con la distribución realmente usada (cuya media es π/(1&minus;π)=0.667) — parece un error de transcripción, no del modelo.</div>
+  </div>
+
+  <div class="card">
+    <h2>Funciones de valor óptimo u*ₜ(s)</h2>
+    <p>Resueltas por inducción hacia atrás con el solver genérico (<code>ch4/backward_induction.py</code>), comparadas contra la solución a mano del PDF (puntos huecos, línea punteada).</p>
+    <div class="legend" id="legend-v"></div>
+    <div class="chart-wrap">
+      <svg id="chart-v" viewBox="0 0 900 320"></svg>
+      <div class="tooltip" id="tt-v"></div>
+    </div>
+    <div class="callout">Los umbrales de política óptima coinciden exactamente con la solución a mano: <strong>reemplazar si y solo si s ≥ 2</strong>, tanto en t=1 como en t=2 (estructura monótona, Teorema 4.7.5). La única diferencia numérica notable es u*₁(1): &minus;1.45 (aquí) vs. &minus;1.35 (a mano) — no altera la política.</div>
+    <details class="tableview"><summary>Ver tabla</summary><div class="scroll" id="table-v"></div></details>
+  </div>
+
+  <div class="card">
+    <h2>Código fuente</h2>
+    <p>Python puro, sin dependencias — solver genérico de inducción hacia atrás para MDP de horizonte finito, aplicado a este modelo.</p>
+    <pre class="code" id="code-block"></pre>
+  </div>
+</div>
+
+<script>
+const DATA = {"states":[0,1,2,3,4,5,6,7,8],"V":{"1":[2.8226175999999996,-1.453696,-2.1773824000000004,-2.1773824000000004,-2.1773824000000004,-2.1773824000000004,-2.1773824000000004,-2.1773824000000004,-2.1773824000000004],"2":[4.34016,1.3504,-0.65984,-0.65984,-0.65984,-0.65984,-0.65984,-0.65984,-0.65984],"3":[5,4,3,2,1,0,0,0,0]},"policy":{"1":[0,0,1,1,1,1,1,1,1],"2":[0,0,1,1,1,1,1,1,1]},"hand":{"2":[4.345,1.35,-0.65,-0.65,-0.65,-0.65,-0.65,-0.65,-0.65],"1":[2.82,-1.35,-2.165,-2.165,-2.165,-2.165,-2.165,-2.165,-2.165]},"s_star":{"1":2,"2":2},"dist_check":{"s":[0,1,2,3,4],"target":[4.34,3.35,2.37,1.44,0.6],"conv_a":[3.617,2.694,1.824,1.04,0.4],"conv_b":[4.34,3.35,2.376,1.44,0.6]}};
+const root = document.querySelector('.viz-root');
+const cs = getComputedStyle(root);
+function cv(name){ return cs.getPropertyValue(name).trim(); }
+function ns(tag, attrs){ const el = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in attrs) el.setAttribute(k, attrs[k]); return el; }
+
+function drawDist(){
+  const svg = document.getElementById('chart-dist'); svg.innerHTML = '';
+  const W=900,H=260, mL=44,mR=16,mT=14,mB=32;
+  const pW=W-mL-mR, pH=H-mT-mB;
+  const s = DATA.dist_check.s;
+  const n = s.length;
+  const x = i => mL + (i/(n-1))*pW;
+  const yMax = 5, y = v => mT + (1-v/yMax)*pH;
+  const tt = document.getElementById('tt-dist'); const wrap = svg.parentElement;
+  for (let g=0; g<=5.001; g+=1){
+    const gy=y(g);
+    svg.appendChild(ns('line',{x1:mL,x2:W-mR,y1:gy,y2:gy,class:'gridline'}));
+    svg.appendChild(Object.assign(ns('text',{x:mL-8,y:gy+3,'text-anchor':'end',class:'axis-label'}))).textContent=g;
+  }
+  svg.appendChild(ns('line',{x1:mL,x2:mL,y1:mT,y2:H-mB,class:'baseline'}));
+  svg.appendChild(ns('line',{x1:mL,x2:W-mR,y1:H-mB,y2:H-mB,class:'baseline'}));
+  s.forEach((v,i)=>svg.appendChild(Object.assign(ns('text',{x:x(i),y:H-mB+16,'text-anchor':'middle',class:'axis-label'}))).textContent='s='+v);
+  svg.appendChild(Object.assign(ns('text',{x:mL,y:H-4,class:'axis-title'}))).textContent='s';
+
+  const series = [
+    {key:'target', label:'Objetivo (valores del PDF)', color: cv('--s1'), dashed:false},
+    {key:'conv_b', label:'P(X=j)=(1−π)·πʲ  (coincide)', color: cv('--s3'), dashed:true},
+    {key:'conv_a', label:'P(X=j)=π(1−π)ʲ  (no coincide)', color: cv('--s2'), dashed:true},
+  ];
+  series.forEach(ser=>{
+    const row = DATA.dist_check[ser.key];
+    let d=''; row.forEach((v,i)=>{ d += (i===0?'M':'L')+x(i).toFixed(2)+','+y(v).toFixed(2)+' '; });
+    svg.appendChild(ns('path',{d, class:'line-path'+(ser.dashed?' dashed':''), stroke:ser.color}));
+    row.forEach((v,i)=>{
+      const c = ns('circle',{cx:x(i),cy:y(v),class:'dot',fill:ser.color});
+      c.addEventListener('mousemove',(e)=>{
+        const b=wrap.getBoundingClientRect();
+        tt.style.left=(e.clientX-b.left+12)+'px'; tt.style.top=(e.clientY-b.top-28)+'px'; tt.style.opacity=1;
+        tt.innerHTML=`<strong>${ser.label}</strong><br>s=${s[i]}: f=${v}`;
+      });
+      c.addEventListener('mouseleave',()=>{tt.style.opacity=0;});
+      svg.appendChild(c);
+    });
+  });
+  const legend = document.getElementById('legend-dist'); legend.innerHTML='';
+  series.forEach(ser=>{
+    const item=document.createElement('div'); item.className='legend-item';
+    item.innerHTML=`<span class="legend-line" style="background:${ser.color}"></span>${ser.label}`;
+    legend.appendChild(item);
+  });
+}
+
+function drawV(){
+  const svg = document.getElementById('chart-v'); svg.innerHTML='';
+  const W=900,H=320, mL=48,mR=16,mT=14,mB=32;
+  const pW=W-mL-mR, pH=H-mT-mB;
+  const states = DATA.states; const n=states.length;
+  const x = i => mL + (i/(n-1))*pW;
+  const yMin=-3, yMax=5.5, y = v => mT + (1-(v-yMin)/(yMax-yMin))*pH;
+  const tt = document.getElementById('tt-v'); const wrap = svg.parentElement;
+  for (let g=-3; g<=5.001; g+=1){
+    const gy=y(g);
+    svg.appendChild(ns('line',{x1:mL,x2:W-mR,y1:gy,y2:gy,class:'gridline'}));
+    svg.appendChild(Object.assign(ns('text',{x:mL-8,y:gy+3,'text-anchor':'end',class:'axis-label'}))).textContent=g;
+  }
+  svg.appendChild(ns('line',{x1:mL,x2:mL,y1:mT,y2:H-mB,class:'baseline'}));
+  svg.appendChild(ns('line',{x1:mL,x2:W-mR,y1:H-mB,y2:H-mB,class:'baseline'}));
+  states.forEach((v,i)=>svg.appendChild(Object.assign(ns('text',{x:x(i),y:H-mB+16,'text-anchor':'middle',class:'axis-label'}))).textContent='s='+v);
+  svg.appendChild(Object.assign(ns('text',{x:mL,y:H-4,class:'axis-title'}))).textContent='edad del equipo s';
+
+  const seriesDef = [
+    {key:'3', label:'u*₃(s) — terminal', color: cv('--s4')},
+    {key:'2', label:'u*₂(s)', color: cv('--s1')},
+    {key:'1', label:'u*₁(s)', color: cv('--s2')},
+  ];
+  seriesDef.forEach(ser=>{
+    const row = DATA.V[ser.key];
+    let d=''; row.forEach((v,i)=>{ d += (i===0?'M':'L')+x(i).toFixed(2)+','+y(v).toFixed(2)+' '; });
+    svg.appendChild(ns('path',{d, class:'line-path', stroke:ser.color}));
+    row.forEach((v,i)=>{
+      const c = ns('circle',{cx:x(i),cy:y(v),class:'dot',fill:ser.color});
+      c.addEventListener('mousemove',(e)=>{
+        const b=wrap.getBoundingClientRect();
+        tt.style.left=(e.clientX-b.left+12)+'px'; tt.style.top=(e.clientY-b.top-28)+'px'; tt.style.opacity=1;
+        tt.innerHTML=`<strong>${ser.label}</strong><br>s=${states[i]}: ${v.toFixed(4)}`;
+      });
+      c.addEventListener('mouseleave',()=>{tt.style.opacity=0;});
+      svg.appendChild(c);
+    });
+  });
+  // hand-solution dashed overlays for t=1,2
+  ['1','2'].forEach(tk=>{
+    const row = DATA.hand[tk];
+    const color = tk==='1'? cv('--s2') : cv('--s1');
+    let d=''; row.forEach((v,i)=>{ d += (i===0?'M':'L')+x(i).toFixed(2)+','+y(v).toFixed(2)+' '; });
+    svg.appendChild(ns('path',{d, class:'line-path dashed', stroke:color}));
+  });
+
+  const legend = document.getElementById('legend-v'); legend.innerHTML='';
+  seriesDef.forEach(ser=>{
+    const item=document.createElement('div'); item.className='legend-item';
+    item.innerHTML=`<span class="legend-line" style="background:${ser.color}"></span>${ser.label}`;
+    legend.appendChild(item);
+  });
+  const dashedItem=document.createElement('div'); dashedItem.className='legend-item';
+  dashedItem.innerHTML=`<span class="legend-line" style="background:${cv('--text-muted')};border-top:2px dashed ${cv('--text-muted')}"></span>solución a mano (PDF)`;
+  legend.appendChild(dashedItem);
+
+  const tbl = document.getElementById('table-v');
+  let html = '<table><thead><tr><th>s</th><th>u*₁</th><th>u*₁ (mano)</th><th>u*₂</th><th>u*₂ (mano)</th><th>u*₃</th></tr></thead><tbody>';
+  states.forEach((s,i)=>{
+    html += `<tr><td>${s}</td><td>${DATA.V['1'][i].toFixed(4)}</td><td>${DATA.hand['1'][i]}</td><td>${DATA.V['2'][i].toFixed(4)}</td><td>${DATA.hand['2'][i]}</td><td>${DATA.V['3'][i]}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  tbl.innerHTML = html;
+}
+
+document.getElementById('code-block').textContent = `def backward_induction(states, actions, N, transition, reward, terminal_reward):
+    V = {N: {s: terminal_reward(s) for s in states}}
+    policy = {}
+    for t in range(N - 1, 0, -1):
+        V[t], policy[t] = {}, {}
+        for s in states:
+            best_val, best_a = None, None
+            for a in actions[s]:
+                ev = sum(p * V[t + 1][sp] for sp, p in transition(s, a).items())
+                val = reward(t, s, a) + ev
+                if best_val is None or val > best_val:
+                    best_val, best_a = val, a
+            V[t][s], policy[t][s] = best_val, best_a
+    return V, policy
+
+PI = 0.4                      # P(X=j) = (1-PI) * PI**j , j = 0,1,2,...
+K, R = 5, 0                   # costo de reemplazo, valor de rescate
+def h(s): return 2 * s        # costo de mantener equipo de edad s
+
+def transition(s, a):
+    base = 0 if a == 1 else s
+    return {min(base + j, MAXAGE): p for j, p in PMF.items()}
+
+def reward(t, s, a):
+    return (R - K) if a == 1 else -h(s)
+
+def terminal_reward(s):
+    return max(5 - s, 0)`;
+
+function drawAll(){ drawDist(); drawV(); }
+drawAll();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawAll);
+new MutationObserver(drawAll).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+</script>
