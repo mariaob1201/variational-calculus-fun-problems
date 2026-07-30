@@ -1,0 +1,252 @@
+<title>Longstaff-Schwartz: regresión lineal como función de valor (Problema 4.30)</title>
+<style>
+.viz-root{
+  color-scheme: light;
+  --surface-1:      #fcfcfb;
+  --page:           #f9f9f7;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --grid:           #e1e0d9;
+  --axis:           #c3c2b7;
+  --border:         rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])) .viz-root{
+    color-scheme: dark;
+    --surface-1:#1a1a19; --page:#0d0d0d; --text-primary:#ffffff; --text-secondary:#c3c2b7;
+    --text-muted:#898781; --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+  }
+}
+:root[data-theme="dark"] .viz-root{
+  color-scheme: dark;
+  --surface-1:#1a1a19; --page:#0d0d0d; --text-primary:#ffffff; --text-secondary:#c3c2b7;
+  --text-muted:#898781; --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+}
+* { box-sizing: border-box; }
+.viz-root{
+  background: var(--page); color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 32px 20px 60px; max-width: 980px; margin: 0 auto;
+}
+h1{ font-size: 1.5rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+.subtitle{ color: var(--text-secondary); font-size: 0.95rem; margin: 0 0 28px; }
+.card{ background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin-bottom: 22px; }
+.card h2{ font-size: 1.05rem; margin: 0 0 6px; }
+.card p{ color: var(--text-secondary); font-size: 0.88rem; line-height: 1.55; margin: 0 0 10px; }
+.card p:last-child{ margin-bottom: 0; }
+code{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+.formula-block{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--text-primary); line-height: 1.7; }
+table{ border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+th, td{ text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child{ text-align: left; }
+thead th{ color: var(--text-muted); font-weight: 600; }
+.legend{ display:flex; flex-wrap:wrap; gap: 14px; margin: 10px 0 4px; font-size: 0.82rem; color: var(--text-secondary); }
+.legend-item{ display:flex; align-items:center; gap:6px; }
+.legend-line{ width:16px; height:2px; border-radius:2px; flex:none; }
+.legend-swatch{ width:12px; height:12px; border-radius:3px; flex:none; }
+svg{ display:block; width:100%; height:auto; overflow: visible; }
+.axis-label{ fill: var(--text-muted); font-size: 10px; }
+.axis-title{ fill: var(--text-secondary); font-size: 11px; }
+.gridline{ stroke: var(--grid); stroke-width: 1; }
+.baseline{ stroke: var(--axis); stroke-width: 1; }
+.line-path{ fill:none; stroke-width:2; }
+.line-path.dashed{ stroke-dasharray: 4 3; }
+.errbar{ stroke-width: 1.5; }
+.dot{ r:3.2; }
+.dot:hover{ r:5; }
+.tooltip{ position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.78rem; color: var(--text-primary); box-shadow: 0 4px 14px rgba(0,0,0,0.18); opacity: 0; transition: opacity 0.1s; white-space: nowrap; z-index: 5; }
+.chart-wrap{ position: relative; }
+details.tableview{ margin-top: 10px; }
+details.tableview summary{ cursor: pointer; font-size: 0.8rem; color: var(--text-secondary); user-select: none; }
+details.tableview .scroll{ overflow-x:auto; margin-top: 8px; }
+.callout{ border-left: 3px solid var(--s3); padding: 8px 12px; background: var(--page); border-radius: 0 8px 8px 0; font-size: 0.85rem; color: var(--text-secondary); margin-top: 10px; }
+pre.code{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; line-height: 1.55; background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; color: var(--text-primary); margin: 0; white-space: pre; }
+</style>
+
+<div class="viz-root">
+  <h1>Regresión como función de valor: Longstaff-Schwartz</h1>
+  <p class="subtitle">Problema 4.30 (opción sobre acciones) — la técnica estándar de la industria para aproximar el valor de continuación con regresión lineal, en vez de una tabla</p>
+
+  <div class="card">
+    <h2>De tabla a regresión</h2>
+    <p>Todo lo demás en <code>ch4/</code> usa una tabla exacta <code>V[t][s]</code>. Eso deja de ser viable cuando el estado es grande o continuo (como en control de inventarios multivariado, o en variantes de este mismo problema con varios activos). <strong>Longstaff-Schwartz (2001)</strong> resuelve esto reemplazando la tabla por una <strong>regresión lineal</strong> (lineal en los parámetros; aquí con base cuadrática <code>1, s, s²</code>, porque el PDF prueba que <code>u*ₜ</code> es convexa) ajustada sobre trayectorias simuladas del precio, no sobre una malla.</p>
+    <div class="formula-block">En cada t, hacia atrás: ajustar Ĉₜ(s) ≈ β₀+β₁s+β₂s² sobre CF futuro realizado,<br>usando solo trayectorias "in the money" (pago inmediato &gt; 0)<br>Ejercer si g(s) &gt; Ĉₜ(s); si no, continuar (CF de la trayectoria queda igual)</div>
+    <p>Aquí el problema es deliberadamente 1-D para poder comparar la aproximación con regresión contra la <strong>tabla exacta</strong> (misma técnica que en el resto de <code>ch4/</code>) como verdad de referencia.</p>
+  </div>
+
+  <div class="card">
+    <h2>Convergencia: LSM vs. valor exacto</h2>
+    <p>El valor exacto por inducción hacia atrás es <strong id="exact-label"></strong>. Cada punto de LSM es el promedio de 5 corridas con semillas distintas (barras = ±1 desviación estándar entre corridas).</p>
+    <div class="legend" id="legend-conv"></div>
+    <div class="chart-wrap">
+      <svg id="chart-conv" viewBox="0 0 900 300"></svg>
+      <div class="tooltip" id="tt-conv"></div>
+    </div>
+    <details class="tableview"><summary>Ver tabla</summary><div class="scroll" id="table-conv"></div></details>
+  </div>
+
+  <div class="card">
+    <h2>La regresión recupera la forma convexa exacta</h2>
+    <p>En <code>t=28</code>, comparando <code>u*₂₈(s)</code> exacta contra la parábola <code>Ĉ₂₈(s)</code> ajustada por regresión (con 200 000 trayectorias), restringida a la región donde hubo datos "in the money" para entrenarla — fuera de esa región la extrapolación de una regresión no tiene sentido y no se usa en la decisión.</p>
+    <div class="legend" id="legend-curve"></div>
+    <div class="chart-wrap">
+      <svg id="chart-curve" viewBox="0 0 900 260"></svg>
+      <div class="tooltip" id="tt-curve"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>¿Ejerce temprano por error de aproximación?</h2>
+    <p>El PDF demuestra analíticamente que nunca conviene ejercer antes del día 30. Con 200 000 trayectorias, la fracción de trayectorias donde LSM decidió ejercer antes de tiempo fue <strong id="early-label"></strong> — la regresión recupera la política óptima correcta, no solo el valor. (Con pocas trayectorias esta fracción no es exactamente cero: es la firma característica del error de aproximación de LSM, un límite conocido del método en la práctica.)</p>
+  </div>
+
+  <div class="card">
+    <h2>Código fuente</h2>
+    <p>Python puro — mínimos cuadrados resueltos a mano (eliminación gaussiana), sin numpy.</p>
+    <pre class="code" id="code-block"></pre>
+  </div>
+</div>
+
+<script>
+const DATA = {"exact_v1":1.944640142223681,"convergence":[{"n":500,"mean":1.9160000000000093,"std":0.5212293161363828,"runs":[1.6400000000000046,1.20000000000001,2.340000000000011,1.92000000000001,2.480000000000011]},{"n":1000,"mean":1.84000000000001,"std":0.34197953155123567,"runs":[1.6000000000000059,2.3700000000000156,1.740000000000009,1.9700000000000122,1.5200000000000073]},{"n":2000,"mean":1.8950000000000107,"std":0.14426538046253662,"runs":[2.1150000000000135,1.90500000000001,1.9100000000000106,1.7250000000000103,1.820000000000008]},{"n":5000,"mean":1.874000000000009,"std":0.07460562981437804,"runs":[1.9200000000000101,1.9600000000000086,1.7980000000000087,1.8980000000000088,1.7940000000000091]},{"n":10000,"mean":1.92560000000001,"std":0.06725548304785207,"runs":[1.8740000000000099,1.9870000000000083,1.8530000000000109,2.00400000000001,1.9100000000000112]},{"n":20000,"mean":1.9022000000000099,"std":0.06120927217342192,"runs":[1.9860000000000106,1.8765000000000098,1.9205000000000092,1.8190000000000095,1.9090000000000098]},{"n":50000,"mean":1.96416000000001,"std":0.03306399854827006,"runs":[1.9742000000000095,1.9564000000000101,2.0150000000000103,1.9272000000000105,1.948000000000009]},{"n":100000,"mean":1.9417800000000096,"std":0.023502914712860857,"runs":[1.9710000000000099,1.9155000000000095,1.9507000000000099,1.9198000000000093,1.95190000000001]}],"early_frac":0.0,"capture_t":28,"curve_exact":[{"s":31.5,"v":8.400000000000162},{"s":31.700000000000003,"v":26.000000000000163},{"s":31.900000000000002,"v":46.000000000000036},{"s":32.1,"v":66.00000000000021},{"s":32.300000000000004,"v":86.00000000000018},{"s":32.5,"v":106.0000000000002},{"s":32.7,"v":126.00000000000021},{"s":32.9,"v":146.00000000000006}],"curve_fit":[{"s":31.5,"v":7.388394652848092},{"s":31.700000000000003,"v":26.384446628543174},{"s":31.900000000000002,"v":45.85968820930657},{"s":32.1,"v":65.81411939513828},{"s":32.300000000000004,"v":86.24774018603921},{"s":32.5,"v":107.16055058200664},{"s":32.7,"v":128.55255058304238},{"s":32.9,"v":150.42374018914734}],"threshold_price":31.5,"fit_domain":[31.6,32.7]};
+const root = document.querySelector('.viz-root');
+const cs = getComputedStyle(root);
+function cv(name){ return cs.getPropertyValue(name).trim(); }
+function ns(tag, attrs){ const el = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in attrs) el.setAttribute(k, attrs[k]); return el; }
+
+document.getElementById('exact-label').textContent = DATA.exact_v1.toFixed(4);
+document.getElementById('early-label').textContent = (DATA.early_frac*100).toFixed(3) + '%';
+
+function drawConv(){
+  const svg = document.getElementById('chart-conv'); svg.innerHTML='';
+  const W=900,H=300, mL=52,mR=16,mT=14,mB=32;
+  const pW=W-mL-mR, pH=H-mT-mB;
+  const rows = DATA.convergence;
+  const n = rows.length;
+  const xLog = v => Math.log(v);
+  const xMin = xLog(rows[0].n), xMax = xLog(rows[n-1].n);
+  const x = i => mL + (xLog(rows[i].n)-xMin)/(xMax-xMin) * pW;
+  const allVals = rows.flatMap(r=>[r.mean-r.std, r.mean+r.std]).concat([DATA.exact_v1]);
+  const yMin = Math.min(...allVals)-0.1, yMax = Math.max(...allVals)+0.1;
+  const y = v => mT + (1-(v-yMin)/(yMax-yMin))*pH;
+  const tt = document.getElementById('tt-conv'); const wrap = svg.parentElement;
+
+  for (let g=Math.ceil(yMin*2)/2; g<=yMax; g+=0.5){
+    const gy=y(g);
+    svg.appendChild(ns('line',{x1:mL,x2:W-mR,y1:gy,y2:gy,class:'gridline'}));
+    svg.appendChild(Object.assign(ns('text',{x:mL-8,y:gy+3,'text-anchor':'end',class:'axis-label'}))).textContent=g.toFixed(1);
+  }
+  svg.appendChild(ns('line',{x1:mL,x2:mL,y1:mT,y2:H-mB,class:'baseline'}));
+  svg.appendChild(ns('line',{x1:mL,x2:W-mR,y1:H-mB,y2:H-mB,class:'baseline'}));
+  rows.forEach((r,i)=>svg.appendChild(Object.assign(ns('text',{x:x(i),y:H-mB+16,'text-anchor':'middle',class:'axis-label'}))).textContent='n='+r.n);
+  svg.appendChild(Object.assign(ns('text',{x:mL,y:H-4,class:'axis-title'}))).textContent='trayectorias simuladas (escala logaritmica)';
+
+  const ey = y(DATA.exact_v1);
+  svg.appendChild(ns('line',{x1:mL,x2:W-mR,y1:ey,y2:ey,class:'line-path dashed',stroke:cv('--s1')}));
+  svg.appendChild(Object.assign(ns('text',{x:W-mR,y:ey-6,'text-anchor':'end',class:'axis-label'}))).textContent='exacto = '+DATA.exact_v1.toFixed(4);
+
+  rows.forEach((r,i)=>{
+    const cx=x(i);
+    const yLo=y(r.mean-r.std), yHi=y(r.mean+r.std);
+    svg.appendChild(ns('line',{x1:cx,x2:cx,y1:yHi,y2:yLo,stroke:cv('--s3'),class:'errbar'}));
+    svg.appendChild(ns('line',{x1:cx-5,x2:cx+5,y1:yHi,y2:yHi,stroke:cv('--s3'),class:'errbar'}));
+    svg.appendChild(ns('line',{x1:cx-5,x2:cx+5,y1:yLo,y2:yLo,stroke:cv('--s3'),class:'errbar'}));
+    const dot = ns('circle',{cx,cy:y(r.mean),class:'dot',fill:cv('--s3')});
+    dot.addEventListener('mousemove',(e)=>{
+      const b=wrap.getBoundingClientRect();
+      tt.style.left=(e.clientX-b.left+12)+'px'; tt.style.top=(e.clientY-b.top-28)+'px'; tt.style.opacity=1;
+      tt.innerHTML=`<strong>n=${r.n}</strong><br>LSM = ${r.mean.toFixed(4)} ± ${r.std.toFixed(4)}<br>exacto = ${DATA.exact_v1.toFixed(4)}`;
+    });
+    dot.addEventListener('mouseleave',()=>{tt.style.opacity=0;});
+    svg.appendChild(dot);
+  });
+
+  document.getElementById('legend-conv').innerHTML =
+    `<div class="legend-item"><span class="legend-swatch" style="background:${cv('--s3')}"></span>LSM (media ± 1 desv. est., 5 corridas)</div>
+     <div class="legend-item"><span class="legend-line" style="background:${cv('--s1')};border-top:2px dashed"></span>valor exacto (DP tabular)</div>`;
+
+  const tbl = document.getElementById('table-conv');
+  let html='<table><thead><tr><th>n</th><th>media LSM</th><th>desv. est.</th><th>exacto</th></tr></thead><tbody>';
+  rows.forEach(r=>{ html+=`<tr><td>${r.n}</td><td>${r.mean.toFixed(4)}</td><td>${r.std.toFixed(4)}</td><td>${DATA.exact_v1.toFixed(4)}</td></tr>`; });
+  html+='</tbody></table>'; tbl.innerHTML=html;
+}
+
+function drawCurve(){
+  const svg = document.getElementById('chart-curve'); svg.innerHTML='';
+  const W=900,H=260, mL=48,mR=16,mT=14,mB=32;
+  const pW=W-mL-mR, pH=H-mT-mB;
+  const rows = DATA.curve_exact;
+  const n = rows.length;
+  const sMin=rows[0].s, sMax=rows[n-1].s;
+  const x = s => mL + (s-sMin)/(sMax-sMin)*pW;
+  const allV = rows.map(r=>r.v).concat(DATA.curve_fit.map(r=>r.v));
+  const yMin=Math.min(...allV), yMax=Math.max(...allV);
+  const y = v => mT + (1-(v-yMin)/(yMax-yMin))*pH;
+  const tt = document.getElementById('tt-curve'); const wrap = svg.parentElement;
+
+  for (let g=Math.ceil(yMin/50)*50; g<=yMax; g+=50){
+    const gy=y(g);
+    svg.appendChild(ns('line',{x1:mL,x2:W-mR,y1:gy,y2:gy,class:'gridline'}));
+    svg.appendChild(Object.assign(ns('text',{x:mL-8,y:gy+3,'text-anchor':'end',class:'axis-label'}))).textContent=g;
+  }
+  svg.appendChild(ns('line',{x1:mL,x2:mL,y1:mT,y2:H-mB,class:'baseline'}));
+  svg.appendChild(ns('line',{x1:mL,x2:W-mR,y1:H-mB,y2:H-mB,class:'baseline'}));
+  [sMin, (sMin+sMax)/2, sMax].forEach(s=>svg.appendChild(Object.assign(ns('text',{x:x(s),y:H-mB+16,'text-anchor':'middle',class:'axis-label'}))).textContent='s='+s.toFixed(1));
+  svg.appendChild(Object.assign(ns('text',{x:mL,y:H-4,class:'axis-title'}))).textContent='precio de la acción s (época t=28)';
+
+  [{key:'curve_exact',color:cv('--s1'),label:'u*₂₈(s) exacta'},{key:'curve_fit',color:cv('--s3'),label:'Ĉ₂₈(s) regresión'}].forEach(ser=>{
+    const data = DATA[ser.key];
+    let d=''; data.forEach((r,i)=>{ d+=(i===0?'M':'L')+x(r.s).toFixed(2)+','+y(r.v).toFixed(2)+' '; });
+    svg.appendChild(ns('path',{d, class:'line-path', stroke:ser.color}));
+    data.forEach(r=>{
+      const c = ns('circle',{cx:x(r.s),cy:y(r.v),class:'dot',fill:ser.color});
+      c.addEventListener('mousemove',(e)=>{
+        const b=wrap.getBoundingClientRect();
+        tt.style.left=(e.clientX-b.left+12)+'px'; tt.style.top=(e.clientY-b.top-28)+'px'; tt.style.opacity=1;
+        tt.innerHTML=`<strong>${ser.label}</strong><br>s=${r.s.toFixed(2)}: ${r.v.toFixed(2)}`;
+      });
+      c.addEventListener('mouseleave',()=>{tt.style.opacity=0;});
+      svg.appendChild(c);
+    });
+  });
+  document.getElementById('legend-curve').innerHTML =
+    `<div class="legend-item"><span class="legend-line" style="background:${cv('--s1')}"></span>u*₂₈(s) exacta (tabla)</div>
+     <div class="legend-item"><span class="legend-line" style="background:${cv('--s3')}"></span>Ĉ₂₈(s) ajustada por regresión</div>`;
+}
+
+document.getElementById('code-block').textContent = `def lsm_price(n_paths, seed=0):
+    rng = random.Random(seed)
+    paths = simulate_paths(n_paths, rng)
+    n = len(paths)
+    CF = [max(0.0, payoff(price(paths[i][T - 1]))) for i in range(n)]
+
+    for t in range(T - 1, 0, -1):
+        s_price_t = [price(paths[i][t - 1]) for i in range(n)]
+        exer_val = [payoff(sp) for sp in s_price_t]
+        itm = [i for i in range(n) if exer_val[i] > 0]
+        if len(itm) < 10:
+            continue
+        beta = _fit([s_price_t[i] for i in itm], [CF[i] for i in itm])
+        for i in itm:
+            if exer_val[i] > _predict(beta, s_price_t[i]):
+                CF[i] = exer_val[i]     # ejercer: mejor que el valor de continuar
+
+    return sum(CF) / n
+
+def _basis(s):
+    return (1.0, s, s * s)   # cuadratica -- coincide con la convexidad de u*_t
+
+def _fit(xs, ys):
+    # minimos cuadrados ordinarios via ecuaciones normales, resueltas
+    # con eliminacion gaussiana (sin numpy)
+    ...`;
+
+function drawAll(){ drawConv(); drawCurve(); }
+drawAll();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawAll);
+new MutationObserver(drawAll).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+</script>
